@@ -81,7 +81,7 @@ bookmarks for /home/skremsler/Radio_X/RuFFM/2019-10-12_18-55_-_RadioX_-_RuFFM.mp
  30 at 01h:01m:12s	Mi 05 Feb 2020 03:46:45 CET	shut dem down
 ```
 
-## List all bookmarks
+### List all bookmarks
 ```
 skremsler@morpheus:~$ bm list
 bookmarks for /home/skremsler/Radio_X/RuFFM/2019-10-12_18-55_-_RadioX_-_RuFFM.mp3
@@ -92,3 +92,8 @@ bookmarks for /home/skremsler/Radio_X/RuFFM/2020-01-18_18-55_-_RadioX_-_RuFFM.mp
   7 at 01h:02m:18s	Mi 05 Feb 2020 00:49:34 CET	fighter
  18 at 01h:02m:46s	Mi 05 Feb 2020 01:26:08 CET	full spectrum
  ```
+
+
+## Ideas
+
+- CUE file support
