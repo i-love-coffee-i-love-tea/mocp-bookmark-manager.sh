@@ -24,7 +24,7 @@ The csv file doesn't have to exist. It will be created with the first execution 
 
 ## Usage 
 ```
-usage: /home/gobuki/bin/mocp-bookmark-manager.sh <command>
+usage: /home/skremsler/bin/mocp-bookmark-manager.sh <command>
 
   the following commands are available:
   -------------------------------------
