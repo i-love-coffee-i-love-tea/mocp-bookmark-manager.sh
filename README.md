@@ -3,11 +3,11 @@ A bookmark manager for the wonderfully simple, yet powerful cli audio player 'mo
 
 ## The problem this script solves
 
-None of the audio players i have observed (the list grew very long over the years) none can could bookmarks in mp3 files in a satisfying way. VLC currently has support for it, but the interface is horrible and unusable IMHO (2020-02)
+Of the audio players i have observed - the list grew very long over the years - none could create and manage bookmarks in mp3 files in a satisfying way. VLC currently has support for it, but the interface is horrible and unusable IMHO (2020-02)
 
 ## Why i like mocp
 
-All GUI audio players I have used over the years have either disappeared, changed in a way I didn't like or are missing something for me. I'm a friend of the terminal and don't like bloated software, which sacrifices stability and efficiency for eye candy in an extreme way, so I love the mocp as cli music player. I have used others before, tried about anything. This is incredibly powerful and extendable. With its client/server model It doesn't matter in which terminal window you are, you can control your player on the console without starting a special interface which blocks the console.
+All GUI audio players I have used over the years have either disappeared, changed in a way I didn't like or are missing something for me. This is a reason for me to prefer software with a simpler design (no GUI complexity). As mocp demonstrates it doesn't have to be less powerful at all. As a friend of the terminal, I don't like bloated software, which sacrifices stability and efficiency for eye candy in an extreme way. I have used others before, tried about anything. This is an incredibly powerful and versatile player. With its client/server model It doesn't matter in which terminal window you are, you can control your player on the console without starting a special interface which blocks the console.
 
 ## Description
 
