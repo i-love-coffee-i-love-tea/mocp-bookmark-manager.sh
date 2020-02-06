@@ -1,17 +1,28 @@
 # mocp-bookmark-manager.sh
 A bookmark manager for the wonderfully simple, yet powerful cli audio player 'mocp'. I have never had an audio player setup that functional and efficient.  
 
-## The problem this script solves
+This script might be useful to you, if you identify with at least some of these statements
 
-Of the audio players i have observed - the list grew very long over the years - none could create and manage bookmarks in mp3 files in a satisfying way. VLC currently has support for it, but the interface is horrible and unusable IMHO (2020-02)
+* you feel at home when you have shell in front of you 
+* you like to listen to long audio files
+* you need a simple way to set browsable marks at audio file positions, with ratings and comments
+* you don't like to throw massive (system) resources on simple problems
 
-## Why i like mocp
 
-All GUI audio players I have used over the years have either disappeared, changed in a way I didn't like or are missing something for me. This is a reason for me to prefer software with a simpler design (no GUI complexity). As mocp demonstrates it doesn't have to be less powerful at all. As a friend of the terminal, I don't like bloated software, which sacrifices stability and efficiency for eye candy in an extreme way. I have used others before, tried about anything. This is an incredibly powerful and versatile player. With its client/server model It doesn't matter in which terminal window you are, you can control your player on the console without starting a special interface which blocks the console.
+## Motivation for this script
+
+Of the audio players i have observed - the list grew very long over the years - none could create and manage bookmarks in mp3 files in a satisfying way. VLC currently has support for it, but the interface is horrible and unusable IMHO (2020-02). All GUI audio players I have used over the years have either disappeared, changed in a way I didn't like or are missing something for me. I want consistency, something to build upon. Mocp seems to be around for a long time and i think one reason for it, that it isn't dependent on complex gui toolkits. They draw developer resources and lead to a strong dependency on them. On a medium time frame GUI toolkits come and go and it isn't always a simple task to migrate an application to a different toolkit or a newer toolkit version. I have seen many applications die because of developer interest. Technological debt accumulates faster with complex GUIs and .
+
+## A word about mocp and why I like it
+
+This is a reason for me to prefer software with a simpler design. Avoiding desktop GUI complexity can help to reduce possibilities for design descisions to go wrong and to better focus on the core issues. As mocp demonstrates it doesn't have to be less powerful. As a friend of the terminal, I don't like bloated software, which sacrifices stability and efficiency for eye candy in an extreme way. I have used others before, tried about anything. 
+
+Its client/server model fits my thinking. It's nice to have the slim terminal compatible ncurses interface, but I seldomly use it. It is very convenient to control the player with shell aliases which dispatch commands to the player, running in the background. I mostly use it like that. It doesn't matter in which terminal window you are, you can control your player on the console without starting a special interface which blocks the console. It enables uninteruptive control, when you're working in the terminal anyway and your hands are on the keyboard. Over the years I have formed a strong opinion against GUI applications and prefer the console where possible, because the applications don't get in my way as much.
+
 
 ## Description
 
-This little shell script manages bookmarks of positions in audio files in a csv file. 
+This little shell script manages bookmarks of positions in audio files in a CSV file. 
 
 It can be used in combination with mocp to bookmark positions in playing files, jump to bookmarks and manage bookmarks from the command line. Bookmarks can have a rating and a comment.
 
@@ -24,35 +35,46 @@ The csv file doesn't have to exist. It will be created with the first execution 
 
 ## Usage 
 ```
-usage: /home/skremsler/bin/mocp-bookmark-manager.sh <command>
+usage: /home/gobuki/bin/bm command args ...
+where command is one of the following:
 
-  the following commands are available:
-  -------------------------------------
-  add [comment]             bookmark the current mocp playing position
-                            with an optional comment
+	a[dd] [comment]                    bookmark the current mocp playing position
+	                                   with an optional comment
 
-  go <bookmark_index>       jump to the bookmark playing position
-                            the file containing the bookmark must be playing in mocp
+	g[oto] <bookmark_index>            jump to the bookmark playing position
+	                                   the file containing the bookmark must be playing in mocp
+	pre[vious]                         jump to previous bookmark in file
+	n[ext]                             jump to next bookmark in file
+	                                   If there was a manual jump before.
+	                                   If not the jump will be to the first bookmark
 
-  rating <bookmark_index> <rating> 
-                            set a rating value (can be anything, i use 1-5)
+	set-r[ating] <bookmark_index> <rating> 
+	                                   set a rating value (can be anything, i use 1-5)
 
-  comment <bookmark_index> <comment> 
-                            set the bookmark comment
+	set-c[omment] <bookmark_index> <comment> 
+	                                   set the bookmark comment
 
-  show <bookmark_index>     show bookmark details
-  remove <bookmark_index>   remove a bookmark
-  list                      list all bookmarks by file
-  listp                     list playing file bookmarks
+	sh[ow] <bookmark_index>            show bookmark details
+	re[move]|rm <bookmark_index>       remove a bookmark
+	d[elete] <bookmark_index>          
 
-  csv                       output the bookmarks csv database to the terminal
-                            columns:
-                              bookmark index
-                              filename
-                              position (seconds)
-                              rating
-                              bookmark creation time
-                              comment
+	list                               list all bookmarks by file
+	list-[playing]|lp                  list playing file bookmarks
+
+	f[ilter] r[ating] <1-5>            bookmark must have a minimum rating of <1-5>
+	f[ilter] c[omment] <search-term>   comment must contain the search term
+
+	o[utput-bash-completions]          output bash_completions_file
+	sy[stem-info]                      check if the needed shell utils are available
+
+	pri[nt-csv]                        output the bookmarks csv database to the terminal
+	                                   columns:
+	                                  	bookmark index
+	                                  	filename
+	                                  	position (seconds)
+	                                  	rating
+	                                  	bookmark creation time
+	                                  	comment
 
 ```
 
@@ -121,4 +143,14 @@ bookmarks for /home/skremsler/Radio_X/RuFFM/2020-01-18_18-55_-_RadioX_-_RuFFM.mp
 
 ## Ideas
 
-- CUE file support
+* CUE file support
+** Or maybe better not,... the last twenty years I got the impression that CUE file support
+   isn't supported very well, if at all by most players. Maybe i missed some nice player,
+   but every other year I searched for current players with CUE sheet support, 
+   because I wanted to conveniently set and manages markers in audio files and I wasn't successful.
+   So the theoretical standardization benefit of the format isn't very big in my opinion.
+
+   There is some really nice cue sheet software. mp3splt is a great cue sheet tool
+   for example... but where are the players? It seems the applications supporting cue files
+   are mostly CD and ISO oriented. 
+   
