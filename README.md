@@ -1,7 +1,10 @@
 # mocp-bookmark-manager.sh
 A bookmark manager for the wonderfully simple, yet powerful cli audio player 'mocp'. I have never had an audio player setup that functional and efficient.  
 
-This script might be useful to you, if you identify with at least some of these statements
+A shell script for managing bookmarks of positions in audio files backed by a CSV file. 
+It can be used in combination with mocp to bookmark positions in playing files, jump to bookmarks and manage bookmarks from the command line. Bookmarks can have a rating and a comment.
+
+It might be useful to you, if you identify with at least some of these statements.
 
 * you feel at home when you have shell in front of you 
 * you like to listen to long audio files
@@ -18,13 +21,6 @@ Of the audio players i have observed - the list grew very long over the years - 
 This is a reason for me to prefer software with a simpler design. Avoiding desktop GUI complexity can help to reduce possibilities for design descisions to go wrong and to better focus on the core issues. As mocp demonstrates it doesn't have to be less powerful. As a friend of the terminal, I don't like bloated software, which sacrifices stability and efficiency for eye candy in an extreme way. I have used others before, tried about anything. 
 
 Its client/server model fits my thinking. It's nice to have the slim terminal compatible ncurses interface, but I seldomly use it. It is very convenient to control the player with shell aliases which dispatch commands to the player, running in the background. I mostly use it like that. It doesn't matter in which terminal window you are, you can control your player on the console without starting a special interface which blocks the console. It enables uninteruptive control, when you're working in the terminal anyway and your hands are on the keyboard. Over the years I have formed a strong opinion against GUI applications and prefer the console where possible, because the applications don't get in my way as much.
-
-
-## Description
-
-This little shell script manages bookmarks of positions in audio files in a CSV file. 
-
-It can be used in combination with mocp to bookmark positions in playing files, jump to bookmarks and manage bookmarks from the command line. Bookmarks can have a rating and a comment.
 
 ## Installation
 
