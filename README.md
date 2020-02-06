@@ -39,7 +39,7 @@ usage: /home/gobuki/bin/bm command args ...
 where command is one of the following:
 
 	a[dd] [comment]                    bookmark the current mocp playing position
-	                                   with an optional comment
+	a[dd] [1-5] [comment]              with an optional rating and comment
 
 	g[oto] <bookmark_index>            jump to the bookmark playing position
 	                                   the file containing the bookmark must be playing in mocp
