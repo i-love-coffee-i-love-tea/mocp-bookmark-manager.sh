@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 #
 # Author: Steffen Kremsler <mocp-bookmark-manager@gobuki.org>
 # Date:   Feb. 4th, 2020
@@ -97,15 +97,9 @@ list_file_bookmarks() {
 	FILTER="$3"
 	PLAYING_FILE=$($MOCP -Q "%file")
 	if [ "$AUDIO_FILE" = "$PLAYING_FILE" ]; then
-		echo $TERM | $GREP color >/dev/null
-		TERMINAL_SUPPORTS_COLORS=$?
-		if [ "$TERMINAL_SUPPORTS_COLORS" ]; then
-			COLOR="${GREEN}"
-			COLOR_RESET="${RESET}"
-		fi
-		echo bookmarks for $AUDIO_FILE "${COLOR}" '<< N O W   P L A Y I N G'
-		echo | awk "{print substr(\"-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\", 0, $COLUMNS)}"
-	        echo "${COLOR_RESET}"
+		echo -e bookmarks for $AUDIO_FILE "${COLOR_GREEN}" '< < <   N O W   P L A Y I N G'
+		echo | awk "{print substr(\"===========================================================================================================================================================================================================================================================================================================\", 0, $COLUMNS)}"
+	        echo -e "${COLOR_RESET}"
 	else
 		echo bookmarks for $AUDIO_FILE
 	fi
@@ -245,8 +239,6 @@ jump_to_random_bookmark() {
 	done <<EOF
 $AUDIO_FILES
 EOF
-
-	
 	# an idea
 	return 1
 }
@@ -369,44 +361,32 @@ find_command() {
 	echo $LONGEST_MATCH_COMMAND
 }
 
-# I got a little messy with the colors here.
-# I think its a sign to stop and don't bloat it up too much.
 check_program_existence() {
 	PATH="$1"
-	echo $TERM | $GREP color >/dev/null
-	TERMINAL_SUPPORTS_COLORS=$?
-	COLOR=
-	COLOR_RESET=
 	if type "$1" >/dev/null; then
-		if [ "$TERMINAL_SUPPORTS_COLORS" ]; then
-			COLOR="${GREEN}"
-			COLOR_RESET="${RESET}"
-		fi
-		echo "\t${COLOR}$(type "$1")${COLOR_RESET}"
+		printf "\t${COLOR_GREEN}%-30s${COLOR_RESET}" "$(type $1)" 
+
 		# check the executable bit
 		[ -x "$1" ] && IS_EXECUTABLE=0
 		if [ -x "$1" ]; then
-			if [ "$TERMINAL_SUPPORTS_COLORS" ]; then
-				COLOR="${GREEN}"
-				COLOR_RESET="${RESET}"
-			fi
-			echo "\t\t${COLOR}[is executable]${COLOR_RESET}"
+			echo -e "\t\t${COLOR_GREEN}[is executable]${COLOR_RESET}"
 		else
-			if [ "$TERMINAL_SUPPORTS_COLORS" ]; then
-				COLOR="${RED}"
-				COLOR_RESET="${RESET}"
-			fi
-			echo "\t\t${COLOR}[isn't executable]${COLOR_RESET}"
-
+			echo -e "\t\t${COLOR_RED}[isn't executable]${COLOR_RESET}"
 		fi
 	else 
-		if [ "$TERMINAL_SUPPORTS_COLORS" ]; then
-			COLOR="${RED}"
-			COLOR_RESET="${RESET}"
-		fi
-		echo "\t${COLOR}$(type "$1")${COLOR_RESET}"
+		echo -e "\t${COLOR_RED}$(type "$1")${COLOR_RESET}"
 	fi
 }
+
+
+# initialization	
+echo $TERM | $GREP color >/dev/null
+TERMINAL_SUPPORTS_COLORS=$?
+if [ "$TERMINAL_SUPPORTS_COLORS" ]; then
+	COLOR_GREEN="${GREEN}"
+	COLOR_RED="${RED}"
+	COLOR_RESET="${RESET}"
+fi
 
 # loop through script arguments
 while [ $# -gt 0 ]; do
