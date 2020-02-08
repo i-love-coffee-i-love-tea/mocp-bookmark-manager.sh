@@ -256,6 +256,37 @@ skremsler@morpheus:$ bm goto 7
 jumping to bookmark 7 at position 00h:49m:34s
 ```
 
+### Filter bookmarks by rating
+
+The default operator is ==
+```
+# Show bookmarks with rating==3
+$ bm filter rating 3
+```
+
+You can also supply a different operator
+
+```
+# Show bookmarks with rating>=3
+$ bm filter rating gt 3
+```
+
+All possible operators:
+
+lt (<)
+le (<=)
+eq (==)
+ge (>=)
+gt (>)
+
+(like used in the core utils test builtin)
+
+### Filter bookmarks by comment
+
+```
+$ bm filter comment "search-term"
+```
+
 
 ### Export the segment between two bookmarks from an mp3 file
 
