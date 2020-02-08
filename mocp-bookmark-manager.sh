@@ -1,9 +1,9 @@
 #!/bin/bash
 #
 # Author: Steffen Kremsler <mocp-bookmark-manager@gobuki.org>
-# Date:   Feb. 4th, 2020
+# Date:   Feb. 8th, 2020
 # License: GPL 2
-# Version: 0.9
+# Version: 1.0
 #
 # Manages audio file bookmarks in combination with the fabulous
 # mocp commmand line audio player. 
@@ -12,9 +12,17 @@
 #    mocp 2.6-alpha3
 #    dash 0.5.10
 #    GNU Awk 4.2.1
-#    GNU coreutils 8.30 (mv, cat, cut, sort, uniq)
+#    GNU coreutils 8.30 (mv, cat, cut, tr, sort, uniq, base64)
 #    GNU grep 3.3
 #
+#    Optional dependencies:
+#
+#      base64    to extract embedded bash-completions file
+#      gunzip    to extract embedded bash-completions file
+#
+#      mp3splt   if mp3splt is installed you can use two bookmarks
+#		 in an mp3 file as a range to export the audio
+#		 between them 
 #
 # Changelog: 
 #
@@ -41,8 +49,34 @@
 #         to enable better integration with completions (completion script
 #         doesn't have to be updated, when the bookmark manager script evolves.
 #       - Formatted timestamp displayed when jumping to bookmarks
+#
+#    Version 1.0
+#       - Reordered, grouped, renamed command functions to the command name
+#       - Added function documentation
+#       - Fixed a bug in the set-<field> commands
+#	- The playing file is displayed with a "N O W   P L A Y I N G" notice
+#	- Added better filtering options for ratings:
+#
+#	  Comparison operator	Filter command
+#	  <             	lt
+#         <=			le
+#         =			eq
+#         >=			ge
+#         >			gt
+#           
 
 BOOKMARKS_FILE="/home/gobuki/Radio_X/bookmarks.csv"
+MP3SPLT_DEFAULT_OUTPUT_DIR="/home/gobuki/Radio_X/extracts"
+
+# create directories and files
+BOOKMARKS_FILE_DIR="$(dirname "$BOOKMARKS_FILE")"
+mkdir -p "$BOOKMARKS_FILE_DIR"
+mkdir -p "$MP3SPLT_DEFAULT_OUTPUT_DIR"
+[ ! -d "$BOOKMARKS_FILE_DIR" ] \
+	&& echo couldn\'t create bookmark file parent directory "$BOOKMARKS_FILE_DIR" \
+	&& exit 
+
+TMPL_LINE_DBL="==========================================================================================================================================================================================================================================================================================================="
 
 # full paths to all used shell utils
 # the only other command used in this script is /bin/mv 
@@ -55,7 +89,9 @@ SORT=/usr/bin/sort
 CAT=/bin/cat
 BASE64=/usr/bin/base64
 GUNZIP=/bin/gunzip
+MP3SPLT=/usr/bin/mp3splt
 
+# Field names
 FIELD_ID=1
 FIELD_FILE=2
 FIELD_POS=3
@@ -63,6 +99,7 @@ FIELD_CREATED=4
 FIELD_RATING=5
 FIELD_COMMENT=6
 
+# Terminal colors
 RED="\033[1;31m"
 BLUE="\033[1;34m"
 CYAN="\033[1;36m"
@@ -71,64 +108,131 @@ RESET="\033[0;0m"
 BOLD="\033[;1m"
 REVERSE="\033[;7m"
 
+
+### 
+
+check_program_existence() {
+	PATH="$1"
+	if type "$1" >/dev/null; then
+		printf "\t${COLOR_GREEN}%-30s${COLOR_RESET}" "$(type $1)" 
+
+		# check the executable bit
+		[ -x "$1" ] && IS_EXECUTABLE=0
+		if [ -x "$1" ]; then
+			echo -e "\t\t${COLOR_GREEN}[is executable]${COLOR_RESET}"
+		else
+			echo -e "\t\t${COLOR_RED}[isn't executable]${COLOR_RESET}"
+		fi
+	else 
+		echo -e "\t${COLOR_RED}$(type "$1")${COLOR_RESET}"
+	fi
+}
+
+# returns 0 if the passed filename equals the playing file
+file_is_playing() {
+	AUDIO_FILE="$1"
+	if [ "${AUDIO_FILE}x" = "$(get_playing_file)x" ]; then
+		return 0;
+	else
+		return 1;
+	fi
+}
+
+# echoes the full name, with path, of the playing file
+get_playing_file() {
+	$MOCP -Q "%file"
+}
+
+### Output functions
+
 display_bookmark() {
 	CSV_LINE="$1"
 	printf "\t%12s %s\n" "Index:" "$(echo "$CSV_LINE" | $CUT -f$FIELD_ID -d';')"
 	printf "\t%12s %s\n" "File:" "$(echo "$CSV_LINE" | $CUT -f$FIELD_FILE -d';')"
-	printf "\t%12s %s\n" "Position:" "$(echo "$CSV_LINE" | $CUT -f$FIELD_POS -d';' | $AWK '{printf "%02dh:%02dm:%02ds", $1/(60*60), $1%(60*60)/60, $1%60}')"
+	printf "\t%12s %s\n" "Position:" "$(format_timestamp $(echo "$CSV_LINE" | $CUT -f$FIELD_POS -d';'))"
 	printf "\t%12s %s\n" "Created:" "$(echo "$CSV_LINE" | $CUT -f$FIELD_CREATED -d';')"
 	printf "\t%12s %s\n" "Rating:" "$(format_rating $(echo "$CSV_LINE" | $CUT -f$FIELD_RATING -d';'))"
 	printf "\t%12s %s\n" "Comment:" "$(echo "$CSV_LINE" | $CUT -f$FIELD_COMMENT -d';')"
 }
 
-list_all_bookmarks() {
-	AUDIO_FILES="$($CUT -f2 -d';' ${BOOKMARKS_FILE} | $SORT | $UNIQ)"
-	while read AUDIO_FILE; do
-	        list_file_bookmarks "$AUDIO_FILE"
-		echo
-	done <<EOF
-$AUDIO_FILES
-EOF
+print_file_bookmarks_header() {
+	AUDIO_FILE="$1"
+	if file_is_playing "$AUDIO_FILE"; then
+		echo -e Bookmarks for $AUDIO_FILE "${COLOR_GREEN}" '< < <   N O W   P L A Y I N G'
+		echo -e $(echo | awk "{print substr(\"$TMPL_LINE_DBL\", 0, $COLUMNS)}") "${COLOR_RESET}"
+	else
+		echo Bookmarks for $AUDIO_FILE
+	fi
 }
 
 list_file_bookmarks() {
 	AUDIO_FILE="$1"
 	FILTER_COLUMN=$2
-	FILTER="$3"
-	PLAYING_FILE=$($MOCP -Q "%file")
-	if [ "$AUDIO_FILE" = "$PLAYING_FILE" ]; then
-		echo -e bookmarks for $AUDIO_FILE "${COLOR_GREEN}" '< < <   N O W   P L A Y I N G'
-		echo | awk "{print substr(\"===========================================================================================================================================================================================================================================================================================================\", 0, $COLUMNS)}"
-	        echo -e "${COLOR_RESET}"
-	else
-		echo bookmarks for $AUDIO_FILE
-	fi
+	FILTER_OPERATOR="$3"
+	FILTER="$4"
 
+
+
+	print_file_bookmarks_header "$AUDIO_FILE"
 
 	# filter by rating
-	if [ "$FILTER_COLUMN" = "5" ]; then
-		$SORT -nk$FIELD_POS -t';' "${BOOKMARKS_FILE}" | $GREP "${AUDIO_FILE}" \
-			| $AWK -F';' "\$$FILTER_COLUMN>=$FILTER {printf \"%3d at %02dh:%02dm:%02ds\t%s\t%s\t%s\n\", \
+	if [ "$FILTER_COLUMN" = "$FIELD_RATING" ]; then
+		get_bookmarks_filtered "$AUDIO_FILE" $FIELD_POS \
+			| $AWK -F';' "\$${FILTER_COLUMN}${FILTER_OPERATOR}${FILTER}    {printf \"%3d at %02dh:%02dm:%02ds\t%s\t%s\t%s\n\", \
 		       	\$1, \$3/(60*60), \$3%(60*60)/60, \$3%60, \$4, substr(\"*******\", 1, \$5), \$6}"
         # filter by comment
-	elif [ "$FILTER_COLUMN" = "6" ]; then
-		$SORT -nk$FIELD_POS -t';' "${BOOKMARKS_FILE}" | $GREP "${AUDIO_FILE}" \
+	elif [ "$FILTER_COLUMN" = "$FIELD_COMMENT" ]; then
+		[ -z "$FILTER" ] && FILTER="$FILTER_OPERATOR"
+		get_bookmarks_filtered "$AUDIO_FILE" $FIELD_POS \
 			| $AWK -F';' "\$$FILTER_COLUMN ~ /$FILTER/ {printf \"%3d at %02dh:%02dm:%02ds\t%s\t%s\t%s\n\", \
 		       	\$1, \$3/(60*60), \$3%(60*60)/60, \$3%60, \$4, substr(\"*******\", 1, \$5), \$6}"
-	# diplay unfiltered
+	# unfiltered
 	elif [ -z "$FILTER_COLUMN" ]; then
-		$SORT -nk$FIELD_POS -t';' "${BOOKMARKS_FILE}" | $GREP "${AUDIO_FILE}" \
+		get_bookmarks_filtered "$AUDIO_FILE" $FIELD_POS \
 			| $AWK -F';' '{printf "%3d at %02dh:%02dm:%02ds\t%s\t%s\t%s\n", \
 		       	$1, $3/(60*60), $3%(60*60)/60, $3%60, $4, substr("*******", 1, $5), $6}'
 	fi
 }
 
-list_playing_file_bookmarks() {
-	PLAYING_FILE=$($MOCP -Q "%file")
-	list_file_bookmarks "$PLAYING_FILE"
-	echo Current position in file: $($MOCP -Q "%ct - %tt")
+set_field() {
+	BOOKMARK_INDEX=$1
+	FIELD_NO=$2
+	VALUE="$3"
+	if bookmark_exists $BOOKMARK_INDEX; then
+		CSV_LINE=$($GREP "^${BOOKMARK_INDEX};" "${BOOKMARKS_FILE}")
+		if [ "$FIELD_NO" = "$FIELD_RATING" ]; then
+			LINE_START="$(echo "$CSV_LINE" | $AWK -F';' '{print $1";"$2";"$3";"$4}')";
+		elif [ "$FIELD_NO" = "$FIELD_COMMENT" ]; then
+			LINE_START="$(echo "$CSV_LINE" | $AWK -F';' '{print $1";"$2";"$3";"$4";"$5}')";
+		fi
+		# used in sed
+		PREV_RATING=$(get_bookmark $BOOKMARK_INDEX | $AWK -F';' '{print $5}')
+
+		echo $(get_bookmark $BOOKMARK_INDEX)
+		echo sed -i.backup "s|${LINE_START};${PREV_RATING}|${LINE_START};${VALUE}|g" "${BOOKMARKS_FILE}"
+		sed -i.backup "s|${LINE_START};|${LINE_START};${VALUE}|g" "${BOOKMARKS_FILE}"
+		exit 3 
+
+	fi
 }
 
+set_rating() {
+	BOOKMARK_INDEX=$1
+	RATING=$2
+	echo Updating rating to $VALUE
+	set_field $BOOKMARK_INDEX $FIELD_RATING $RATING
+}
+
+
+
+
+
+
+#====================================================================================================
+# CSV functions
+#
+
+# Checks if a bookmark index exists in the CSV datasource
 bookmark_exists() {
 	BOOKMARK_INDEX=$1
 	RET=1
@@ -141,18 +245,179 @@ bookmark_exists() {
 	fi
 	return $RET
 }
-jump_to_bookmark_by_index() {
+
+# simple grep, only food enough for filenames. This will not work correctly when there are filenames
+# which contain the complete name of another file.
+# For example: 
+#   Track.mp3
+#   Track.mp3.extract-01.mp3
+
+# Echoes the CSV line matching the passed index.
+# If a second parameter is passed, it is used as the bookmark source. (used in the filtering functions)
+# Otherwise the bookmarks file is used as source.
+get_bookmark() {
+	BOOKMARK_INDEX=$1
+	STDIN_SRC="$2"
+
+	if [ "${STDIN_SRC}x" != "x" ]; then
+		# CSV passed as second parameter
+		echo "$STDIN_SRC" | $GREP "^${BOOKMARK_INDEX};"
+	else 
+		# CSV file as source
+		$GREP "^${BOOKMARK_INDEX};" "$BOOKMARKS_FILE"
+	fi
+}
+
+
+# Echoes CSV lines matching the passed filter expression, sorted by the field with the index
+# passed as second parameter
+get_bookmarks_filtered() {
+	FILTER="$1"
+	SORT_FIELD=$2
+	if [ "${SORT_FIELD}x" = "x" ]; then
+		$GREP "$FILTER" "${BOOKMARKS_FILE}"
+	else
+		$SORT -nk$SORT_FIELD -t';' "${BOOKMARKS_FILE}" | $GREP "$FILTER" "${BOOKMARKS_FILE}"
+	fi
+}
+
+
+
+# Echoes CSV lines of bookmarks for the playing file. Optionally sorted by the field with
+# the passed index
+get_playing_file_bookmarks() {
+	SORT_FIELD=$1 # optional
+	get_bookmarks_filtered $(get_playing_file) $SORT_FIELD
+}
+
+# Echoes the value of the given field of a passed CSV line
+get_csv_value() {
+	FIELD_NO=$1
+	CSV_LINE="$2"
+	echo "$CSV_LINE" | $AWK -F';' "{print \$$FIELD_NO}"
+}
+
+# Echoes the rating of the bookmark with the given index
+get_rating_by_index() {
+	BOOKMARK_INDEX=$1
+	RATING=$($GREP "^${BOOKMARK_INDEX};" "${BOOKMARKS_FILE}" | $AWK -F';' "{print \$$FIELD_RATING}")
+	echo $RATING
+}
+
+
+#====================================================================================================
+# Output formatting functions
+#
+
+# Input seconds. Output formatted timestamp for as h:m:s
+format_timestamp() {
+	TIMESTAMP="$1"
+	echo "$TIMESTAMP" | awk '{printf "%02dh:%02dm:%02ds",  $1/(60*60), $1%(60*60)/60, $1%60}'
+}
+
+# Echoes the current position in the playing mocp file
+format_mocp_time() {
+	format_timestamp $($MOCP -Q cs)
+}
+
+# Formats the input seconds as time parameter for mp3splt
+format_mp3splt_time() {
+	TOTAL_SECONDS=$1
+	#echo $TOTAL_SECONDS seconds
+	SECONDS=$(expr $TOTAL_SECONDS % 60 )
+	MINUTES=$(expr $TOTAL_SECONDS / 60 )
+	echo $MINUTES.$SECONDS
+}
+
+# Converts a numeric rating to a string with <value> amount of stars
+# examples:
+# 1 -> *
+# 5 -> *****
+format_rating() {
+	RATING=$1
+	if [ ! -z "$RATING" ]; then
+		while read CHAR; do
+			printf "%0s" "*" 
+		done <<EOF
+$(seq 1 $RATING)
+EOF
+	fi
+}
+
+
+#====================================================================================================
+# Command functions
+#
+
+# Iterates through passed $COMMAND_LIST
+# Returns the longest match with $COMMAND_INPUT
+complete_command() {
+	COMMAND_INPUT="$1"
+	COMMAND_LIST="$2"
+	LONGEST_MATCH_COMMAND=
+	LONGEST_MATCH_CHARS=0
+	MORE_THAN_ONE_EQ_LEN_MATCH=1
+	for CMD in $COMMAND_LIST; do
+		MATCHING_CHARS=$(echo $CMD | $GREP -o ^$COMMAND_INPUT | wc -c)
+		if [ "${MATCHING_CHARS}" -gt "$LONGEST_MATCH_CHARS" ]; then
+			LONGEST_MATCH_CHARS=$MATCHING_CHARS
+			LONGEST_MATCH_COMMAND=$CMD
+		fi
+	done
+	echo $LONGEST_MATCH_COMMAND
+}
+
+# Prints all known files with bookmarks to the console
+cmd_list() {
+	AUDIO_FILES="$($CUT -f2 -d';' ${BOOKMARKS_FILE} | $SORT | $UNIQ)"
+	while read AUDIO_FILE; do
+	        list_file_bookmarks "$AUDIO_FILE"
+		echo
+	done <<EOF
+$AUDIO_FILES
+EOF
+}
+
+# Prints the bookmarks in the currently playing file
+cmd_list_playing() {
+	list_file_bookmarks $(get_playing_file)
+	echo Current position in file: $(format_mocp_time)
+}
+
+# Exports the segement between two bookmarks of an mp3 file
+cmd_split() {
+	PLAYING_FILE_BOOKMARKS=$(get_playing_file_bookmarks)
+	BOOKMARK_START=$(get_csv_value $FIELD_POS $(get_bookmark $1 "$PLAYING_FILE_BOOKMARKS" ))
+	BOOKMARK_END=$(get_csv_value $FIELD_POS $(get_bookmark $2 "$PLAYING_FILE_BOOKMARKS" ))
+	OUTPUT_FILENAME="$3"
+	MP3SPLT_START=$(format_mp3splt_time $BOOKMARK_START)
+	MP3SPLT_END=$(format_mp3splt_time $BOOKMARK_END)
+	echo $MP3SPLT "$(get_playing_file)" $MP3SPLT_START $MP3SPLT_END -o "$OUTPUT_FILENAME"
+	$MP3SPLT -o "${MP3SPLT_DEFAULT_OUTPUT_DIR}" "$(get_playing_file)" $MP3SPLT_START $MP3SPLT_END -o "$OUTPUT_FILENAME"
+	echo $MP3SPLT -d "${MP3SPLT_DEFAULT_OUTPUT_DIR}" -o "${OUTPUT_FILENAME}_%m_%s_to_%M_%S" "$(get_playing_file)" $MP3SPLT_START $MP3SPLT_END 
+}
+
+# Sets a bookmarks comment
+cmd_set_comment() {
+	BOOKMARK_INDEX=$1
+	COMMENT="$2"
+	echo Updating comment to "$COMMENT"
+	set_field $BOOKMARK_INDEX $FIELD_COMMENT "$COMMENT"
+}
+
+# Makes mocp jump to the bookmark file and position
+cmd_goto() {
 	BOOKMARK_INDEX=$1
 	BOOKMARK_POSITION=$($GREP "^${BOOKMARK_INDEX};" "${BOOKMARKS_FILE}" | $AWK -F';' '{print $3}')
 	if bookmark_exists $BOOKMARK_INDEX; then
 		POS="$BOOKMARK_POSITION"
-		echo Jumping to bookmark $BOOKMARK_INDEX at position $(echo $POS | awk '{printf "%02dh:%02dm:%02ds",  $1/(60*60), $1%(60*60)/60, $1%60}')
-		PLAYING_FILE=$($MOCP -Q "%file")
+		echo Jumping to bookmark $BOOKMARK_INDEX at position $(format_timestamp $POS)
+		PLAYING_FILE=$(get_playing_file)
 		BOOKMARK_FILE=$($GREP "^${BOOKMARK_INDEX};" "${BOOKMARKS_FILE}" | $AWK -F';' '{print $2}')
 		if [ "$PLAYING_FILE" != "$BOOKMARK_FILE" ]; then
 			echo "Bookmark is in a different file (not currently playing)"
-			echo "\tplaying : $PLAYING_FILE"
-			echo "\tbookmark: $BOOKMARK_FILE"
+			echo -e "\tplaying : $PLAYING_FILE"
+			echo -e "\tbookmark: $BOOKMARK_FILE"
 			if $MOCP -l "${BOOKMARK_FILE}"; then
 				sleep .1
 				echo "Playing bookmark file now"
@@ -166,69 +431,66 @@ jump_to_bookmark_by_index() {
 		$MOCP -j ${BOOKMARK_POSITION}s
 	fi
 }
-get_rating_by_index() {
-	BOOKMARK_INDEX=$1
-	RATING=$($GREP "^${BOOKMARK_INDEX};" "${BOOKMARKS_FILE}" | $AWK -F';' '{print $5}')
-	echo $RATING
+
+# Jumps to the first bookmark in the playing file
+cmd_first() {
+	FIRST_BOOKMARK=$($GREP "$(get_playing_file)" "$BOOKMARKS_FILE" | $AWK -F';' "{print \$$FIELD_ID}" | $SORT | head -n1)
+	cmd_goto $FIRST_BOOKMARK
 }
 
-jump_to_first_bookmark_in_file() {
-	PLAYING_FILE=$($MOCP -Q "%file")
-	FIRST_BOOKMARK=$($GREP "$PLAYING_FILE" "$BOOKMARKS_FILE" | $AWK -F';' "{print \$$FIELD_ID}" | $SORT | head -n1)
-	jump_to_bookmark_by_index $FIRST_BOOKMARK
-}
-
-jump_to_previous_bookmark_in_file() {
+# Jumps to previous bookmark in the playing file
+cmd_previous() {
 	if [ -s /tmp/last_bookmark_jump ]; then
 		LAST_BOOKMARK_INDEX=$(cat /tmp/last_bookmark_jump)
 		# find next bookmark index
-		PLAYING_FILE=$($MOCP -Q "%file")
+		PLAYING_FILE=$(get_playing_file)
 		if [ -z "$LAST_BOOKMARK_INDEX" ]; then
 			echo "no previous jump" 
-			jump_to_first_bookmark_in_file
+			cmd_first
 		else
 			echo "previously jumped to bookmark $LAST_BOOKMARK_INDEX"
 			echo "trying to find a bookmark with lower index in the file"
 			NEXT_LOWER_INDEX_IN_FILE=$($GREP "$PLAYING_FILE" "$BOOKMARKS_FILE" | $AWK -F';' "{print \$$FIELD_ID}" | $SORT | $GREP ^$LAST_BOOKMARK_INDEX\$ -B1 | head -n1)
 			if [ "x$NEXT_LOWER_INDEX_IN_FILE" != "x" ]; then
 				echo "lower index found: $NEXT_LOWER_INDEX_IN_FILE"
-				jump_to_bookmark_by_index $NEXT_LOWER_INDEX_IN_FILE
+				cmd_goto $NEXT_LOWER_INDEX_IN_FILE
 			else
 				echo "next lower index not found"
-				jump_to_first_bookmark_in_file
+				cmd_first
 			fi
 		fi
 	else
-		jump_to_first_bookmark_in_file
+		cmd_first
 	fi
 }
 
-jump_to_next_bookmark_in_file() {
+# Jumps to the next bookmark in the playing file
+cmd_next() {
 	if [ -s /tmp/last_bookmark_jump ]; then
 		LAST_BOOKMARK_INDEX=$(cat /tmp/last_bookmark_jump)
-		PLAYING_FILE=$($MOCP -Q "%file")
 		if [ -z "$LAST_BOOKMARK_INDEX" ]; then
-			jump_to_first_bookmark_in_file
+			cmd_first
 		else
-			NEXT_HIGHEST_INDEX_IN_FILE=$($GREP "$PLAYING_FILE" "$BOOKMARKS_FILE" | $AWK -F';' "{print \$$FIELD_ID}" | $SORT | $GREP ^$LAST_BOOKMARK_INDEX\$ -A1 | tail -n1)
+			NEXT_HIGHEST_INDEX_IN_FILE=$($GREP "$(get_playing_file)" "$BOOKMARKS_FILE" | $AWK -F';' "{print \$$FIELD_ID}" | $SORT | $GREP ^$LAST_BOOKMARK_INDEX\$ -A1 | tail -n1)
 			if [ ! -z "$NEXT_HIGHEST_INDEX_IN_FILE" ]; then
-				jump_to_bookmark_by_index $NEXT_HIGHEST_INDEX_IN_FILE
+				cmd_goto $NEXT_HIGHEST_INDEX_IN_FILE
 			else
-				jump_to_first_bookmark_in_file
+				cmd_first
 			fi
 		fi
 	else
-		jump_to_first_bookmark_in_file
+		cmd_first
 	fi
 }
 
-jump_to_last_bookmark_in_file() {
-	PLAYING_FILE=$($MOCP -Q "%file")
-	LAST_BOOKMARK=$($GREP "$PLAYING_FILE" "$BOOKMARKS_FILE" | $AWK -F';' "{print \$$FIELD_ID}" | $SORT | tail -n1)
-	jump_to_bookmark_by_index $LAST_BOOKMARK
+# Jumps to the last bookmark of the playing file
+cmd_last() {
+	LAST_BOOKMARK=$($GREP "$(get_playing_file)" "$BOOKMARKS_FILE" | $AWK -F';' "{print \$$FIELD_ID}" | $SORT | tail -n1)
+	cmd_goto $LAST_BOOKMARK
 }
 
-jump_to_random_bookmark() {
+# Jumps to a random bookmark position
+cmd_random() {
 	MIN_RATING=$1
 
 	# randomly choose item from filtered list
@@ -243,7 +505,8 @@ EOF
 	return 1
 }
 
-bookmark_playing_position() {
+# Bookmarks a the current mocp position
+cmd_add() {
 	if [ ! -z "$2" ]; then
 		RATING=$1
 		COMMENT="$2"
@@ -264,7 +527,8 @@ bookmark_playing_position() {
 	[ -s /tmp/bookmarks.sorted ] && /bin/mv /tmp/bookmarks.sorted "${BOOKMARKS_FILE}"
 }
 
-remove_bookmark_by_index() {
+# Remove a bookmark by its index
+cmd_remove() {
 	BOOKMARK_INDEX=$1
 	if bookmark_exists $BOOKMARK_INDEX; then
 		echo Deleting bookmark
@@ -275,17 +539,41 @@ remove_bookmark_by_index() {
 	fi
 }
 
-filter_bookmarks_by_rating() {
-	RATING=$1
-	AUDIO_FILES="$($AWK -F';' "\$5>=$RATING {print \$0}" "${BOOKMARKS_FILE}" | $CUT -f$FIELD_FILE -d';' | $SORT | $UNIQ)"
+# Lists all bookmarks with a passed minimum rating 
+cmd_filter_rating() {
+	AWK_COMPARISON_OPERATOR="=="
+	if [ ! -z "$2" ]; then
+		RATING="$2"
+		if [ "$1" == "lt" ]; then
+			AWK_COMPARISON_OPERATOR="<"
+		elif [ "$1" == "le" ]; then
+			AWK_COMPARISON_OPERATOR="<="
+		elif [ "$1" == "eq" ]; then
+			AWK_COMPARISON_OPERATOR="=="
+		elif [ "$1" == "gt" ]; then
+			AWK_COMPARISON_OPERATOR=">"
+		elif [ "$1" == "ge" ]; then
+			AWK_COMPARISON_OPERATOR=">="
+		else 
+			AWK_COMPARISON_OPERATOR="$1"
+		fi
+	else 
+		RATING="$1"
+		AWK_COMPARISON_OPERATOR="=="
+	fi
+	
+#	echo "$AWK -F';' \"\$${FIELD_RATING}${AWK_COMPARISON_OPERATOR}$RATING {print \$0}\" \"${BOOKMARKS_FILE}\" | $CUT -f$FIELD_FILE -d';' | $SORT | $UNIQ"
+	AUDIO_FILES="$($AWK -F';' "\$${FIELD_RATING}${AWK_COMPARISON_OPERATOR}${RATING} {print \$0}" "${BOOKMARKS_FILE}" | $CUT -f$FIELD_FILE -d';' | $SORT | $UNIQ)"
 	while read AUDIO_FILE; do
-	        list_file_bookmarks "$AUDIO_FILE" 5 $1
+	        list_file_bookmarks "$AUDIO_FILE" "$FIELD_RATING" "$AWK_COMPARISON_OPERATOR" "$RATING"
 		echo
 	done <<EOF
 $AUDIO_FILES
 EOF
 }
-filter_bookmarks_by_comment() {
+
+# Lists all bookmarks with matching comments
+cmd_filter_comment() {
 	COMMENT="$1"
 	AUDIO_FILES="$($AWK -F';' "\$$FIELD_COMMENT ~ /$COMMENT/ {print \$0}" "${BOOKMARKS_FILE}" | $CUT -f$FIELD_FILE -d';' | $SORT | $UNIQ)"
 	while read AUDIO_FILE; do
@@ -296,88 +584,22 @@ $AUDIO_FILES
 EOF
 }
 
-set_field() {
-	BOOKMARK_INDEX=$1
-	FIELD_NO=$2
-	VALUE="$3"
-	if bookmark_exists $BOOKMARK_INDEX; then
-		CSV_LINE=$($GREP "^${BOOKMARK_INDEX};" "${BOOKMARKS_FILE}")
-		if [ "$FIELD_NO" = "$FIELD_RATING" ]; then
-			LINE_START="$(echo "$CSV_LINE" | $AWK -F';' '{print $1";"$2";"$3";"$4}')";
-		elif [ "$FIELD_NO" = "$FIELD_COMMENT" ]; then
-			LINE_START="$(echo "$CSV_LINE" | $AWK -F';' '{print $1";"$2";"$3";"$4";"$5}')";
-		fi
-		PREV_RATING=$($GREP "^${BOOKMARK_INDEX};" "${BOOKMARKS_FILE}" | $AWK -F';' '{print $5}')
-		sed -i.backup "s|${LINE_START};${PREV_RATING}|${LINE_START}${VALUE};|g" "${BOOKMARKS_FILE}"
-	fi
+cmd_find_nearest_bookmark() {
+	get_playing_file_bookmarks
+	echo 
 }
 
-set_rating() {
-	BOOKMARK_INDEX=$1
-	RATING=$2
-	echo Updating rating to $VALUE
-	set_field $BOOKMARK_INDEX 5 $RATING
+cmd_mv_bookmark() {
+	DELTA_SECONDS=$1
+	DIRECTION=$2
+	echo
 }
 
 
-# converts a numeric rating to a string with <value> amount of stars
-# examples:
-# 1 -> *
-# 5 -> *****
-format_rating() {
-	RATING=$1
-	if [ ! -z "$RATING" ]; then
-		while read CHAR; do
-			printf "%0s" "*" 
-		done <<EOF
-$(seq 1 $RATING)
-EOF
-	fi
-}
+ 
 
-set_comment() {
-	BOOKMARK_INDEX=$1
-	COMMENT="$2"
-	echo Updating comment to $VALUE
-	set_field $BOOKMARK_INDEX 6 $COMMENT
-}
-
-find_command() {
-	COMMAND_LIST="$2"
-	COMMAND_INPUT="$1"
-	LONGEST_MATCH_COMMAND=
-	LONGEST_MATCH_CHARS=0
-	MORE_THAN_ONE_EQ_LEN_MATCH=1
-	for CMD in $FIRST_LEVEL_COMMANDS; do
-		MATCHING_CHARS=$(echo $CMD | $GREP -o ^$COMMAND_INPUT | wc -c)
-		if [ "${MATCHING_CHARS}" -gt "$LONGEST_MATCH_CHARS" ]; then
-			LONGEST_MATCH_CHARS=$MATCHING_CHARS
-			LONGEST_MATCH_COMMAND=$CMD
-		fi
-		#if [ "${MATCHING_CHARS}" = "$LONGEST_MATCH_CHARS" ]; then
-		#fi
-	done
-	#echo substituting input $1 with command $LONGEST_MATCH_COMMAND
-	echo $LONGEST_MATCH_COMMAND
-}
-
-check_program_existence() {
-	PATH="$1"
-	if type "$1" >/dev/null; then
-		printf "\t${COLOR_GREEN}%-30s${COLOR_RESET}" "$(type $1)" 
-
-		# check the executable bit
-		[ -x "$1" ] && IS_EXECUTABLE=0
-		if [ -x "$1" ]; then
-			echo -e "\t\t${COLOR_GREEN}[is executable]${COLOR_RESET}"
-		else
-			echo -e "\t\t${COLOR_RED}[isn't executable]${COLOR_RESET}"
-		fi
-	else 
-		echo -e "\t${COLOR_RED}$(type "$1")${COLOR_RESET}"
-	fi
-}
-
+#====================================================================================================
+# Main
 
 # initialization	
 echo $TERM | $GREP color >/dev/null
@@ -391,73 +613,80 @@ fi
 # loop through script arguments
 while [ $# -gt 0 ]; do
 
-	FIRST_LEVEL_COMMANDS="list list-playing lp remove rm add goto first previous next last set-rating set-comment filter print-csv show output-bash-completions system-info"
-	CMD=$(find_command $1 "$FIRST_LEVEL_COMMANDS")
+	FIRST_LEVEL_COMMANDS=$($0 | awk '/^\t[a-z]/ {print $1}' | tr -d '[]' | cut -d'|' -f1)
+	CMD=$(complete_command $1 "$FIRST_LEVEL_COMMANDS")
 
 	if [ "$CMD" = "list" ]; then
-		list_all_bookmarks	
+		cmd_list
 		exit 0
 	elif [ "$CMD" = "remove" ]; then
 		shift
 		if [ ! -z "$1" ]; then
-			remove_bookmark_by_index $1
+			cmd_remove $1
 			exit 0
 		fi
 	elif [ "$CMD" = "rm" ]; then
 		shift
 		if [ ! -z "$1" ]; then
-			remove_bookmark_by_index $1
+			cmd_remove $1
 			exit 0
 		fi
 	elif [ "$CMD" = "add" ]; then
 		shift
 		if [ ! -z "$1" ]; then
 			# rating supplied
-			bookmark_playing_position $1 "$2"
+			cmd_add $1 "$2"
 		else
-			bookmark_playing_position "$1"
+			cmd_add "$1"
 		fi
 		exit 0
 	elif [ "$CMD" = "goto" ]; then
 		shift
-		jump_to_bookmark_by_index $1
+		cmd_goto $1
 		exit 0
 	elif [ "$CMD" = "first" ]; then
-		jump_to_first_bookmark_in_file
+		cmd_first
 		exit 0
 	elif [ "$CMD" = "previous" ]; then
-		jump_to_previous_bookmark_in_file
+		cmd_previous
 		exit 0
 	elif [ "$CMD" = "next" ]; then
-		jump_to_next_bookmark_in_file
+		cmd_next
 		exit 0
 	elif [ "$CMD" = "last" ]; then
-		jump_to_last_bookmark_in_file
+		cmd_last
 		exit 0
-	elif [ "$CMD" = "listp" ]; then
-		list_playing_file_bookmarks
+	elif [ "$CMD" = "list-playing" ]; then
+		cmd_list_playing
 		exit 0
 	elif [ "$CMD" = "lp" ]; then
-		list_playing_file_bookmarks
+		cmd_list_playing
 		exit 0
 	elif [ "$CMD" = "set-rating" ]; then
 		shift
-		set_rating $1 $2
+		cmd_set_rating $1 $2
 		exit 0
 	elif [ "$CMD" = "set-comment" ]; then
 		shift
-		set_comment $1 $2
+		cmd_set_comment $1 $2
+		exit 0
+	elif [ "$CMD" = "split" ]; then
+		shift
+		START=$1
+		END=$2
+		OUTPUT_FILE="$3"
+		cmd_split $START $END "$OUTPUT_FILE"
 		exit 0
 	elif [ "$CMD" = "show" ]; then
 		shift
 		if [ ! -z "$1" ]; then
 			BOOKMARK_INDEX=$1
-			display_bookmark "$($GREP "^${BOOKMARK_INDEX};" "${BOOKMARKS_FILE}")"
+			cmd_show "$(get_bookmark ${BOOKMARK_INDEX})"
 			exit 0
 		fi
 	elif [ "$CMD" = "print-csv" ]; then
 		if [ -f "${BOOKMARKS_FILE}" ]; then
-			cat "${BOOKMARKS_FILE}"
+			$CAT "${BOOKMARKS_FILE}"
 		else
 			echo Bookmarks file "${BOOKMARKS_FILE}" doesn\'t exist.
 		fi
@@ -465,25 +694,25 @@ while [ $# -gt 0 ]; do
 	elif [ "$CMD" = "filter" ]; then
 		shift
 		if [ -z "$1" ]; then
-			echo "filter bookmarks by search fields: bm filter <field> <search-term>"
-			echo "the following fields are available for filtering:"	
-			echo "\tr[ating]"
-			echo "\tc[omment]"
+			echo    "filter bookmarks by search fields: bm filter <field> <search-term>"
+			echo    "the following fields are available for filtering:"	
+			echo -e "\tr[ating]"
+			echo -e "\tc[omment]"
 			exit 2
 		fi
 		FILTER_FIELDS="rating comment"
-		FILTER_FIELD=$(find_command $1 "$FILTER_FIELDS")
+		FILTER_FIELD=$(complete_command $1 "$FILTER_FIELDS")
 		if [ "$FILTER_FIELD" = "rating" ]; then
 			shift
 			if [ ! -z "$1" ]; then
-				filter_bookmarks_by_rating $1
+				cmd_filter_rating "$1" "$2"
 				exit 0
 			fi
 
 		elif [ "$FILTER_FIELD" = "comment" ]; then
 			shift
 			if [ ! -z "$1" ]; then
-				filter_bookmarks_by_comment "$1"
+				cmd_filter_comment "$1"
 				exit 0
 			fi
 		fi
@@ -500,7 +729,9 @@ Ms8EQtS3SjBt+xV3i0lFlUKCKI/1T7QZKvF14JrRrgRRZKkERiFiGatatz3GRaCFJYLJS8AxAUJh
 ACQqCUhRcZAF7IQIJIWd2Esoxd8StKPFbOwNdqmBOp3+6VqPd5Jvp9qYpN6Ha/VeXTJ2HXG8hTq3
 2cGDmtjM+mBVmxvlXyprXE5vW17V0VCgCl2qtLWpTpDxrvJqVruh5L8IVIEcqxrKSqCBdnFRm/3/
 49Fgh6BQhFGltyCTPNUYSoFbpJRRsWnJ/tE70/LfkgH51mRX8jH+ABb4O3PnBgAA"
-		echo $BASH_COMPLETIONS_FILE | tr ' ' '\n' | base64 -d | gunzip 
+		!test -x $BASE64 && echo "Error: need the base64 program for this" && exit 2
+		!test -x $GUNZIP && echo "Error: need the gunzip program for this" && exit 2
+		echo $BASH_COMPLETIONS_FILE | tr ' ' '\n' | $BASE64 -d | $GUNZIP
 		echo 
 		echo "------------>8-------------->8-------------->8--------------"
 		echo
@@ -517,7 +748,7 @@ ACQqCUhRcZAF7IQIJIWd2Esoxd8StKPFbOwNdqmBOp3+6VqPd5Jvp9qYpN6Ha/VeXTJ2HXG8hTq3
 		echo "If one or more of them display no path after their name"
 		echo "they aren't found under the path configured in the script."
 		echo 
-		PROGRAMS="$MOCP $AWK $CAT $CUT $SORT $UNIQ"
+		PROGRAMS="$MOCP $AWK $GREP $CAT $CUT $SORT $UNIQ"
 		for PROG in $PROGRAMS; do
 			check_program_existence "$PROG"
 		done
@@ -559,13 +790,18 @@ printf "\t%-34s %s\n" "re[move]|rm <bookmark_index>" "remove a bookmark"
 printf "\t%-34s %s\n" "d[elete] <bookmark_index>" ""
 echo
 printf "\t%-34s %s\n" "list" "list all bookmarks by file"
-printf "\t%-34s %s\n" "list-[playing]|lp" "list playing file bookmarks"
+printf "\t%-34s %s\n" "list-[playing]" "list playing file bookmarks"
+printf "\t%-34s %s\n" "lp" "list playing file bookmarks"
 echo
-printf "\t%s %-25s %s\n" "f[ilter]" "r[ating] <1-5>" "bookmark must have a minimum rating of <1-5>"
+printf "\t%s %-25s %s\n" "f[ilter]" "r[ating] [lt|le|qe|gt|ge] <1-5>" "list bookmarks with a matching rating"
+printf "\t%s %-25s %s\n" "" "" ""
 printf "\t%s %-25s %s\n" "f[ilter]" "c[omment] <search-term>" "comment must contain the search term"
 echo
 printf "\t%-34s %s\n" "o[utput-bash-completions]" "output bash_completions_file"
-printf "\t%-34s %s\n" "sy[stem-info]" "check if the needed shell utils are available"
+printf "\t%-34s %s\n" "sy[stem-info]" "check if the required shell utils are available"
+#printf "\t%-34s %s\n" "sp[lit] <start-index>" "exports the range from <start-index> to the end of the file"
+#printf "\t%-34s %s\n" "to a file with a default name in a directory with a default name"
+printf "\t%-34s %s\n" "sp[lit] <start-index> <end-index> [output-filename]" "check if the required shell utils are available"
 echo
 printf "\t%-34s %s\n" "pri[nt-csv]" "output the bookmarks csv database to the terminal"
 printf "\t%-34s %s\n" "" "columns:"
