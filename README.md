@@ -153,8 +153,8 @@ that fully match part of another filename.
 
 Example:
 ```
-full_match.mp3
-full_match.mp3.extract_01.mp3
+/same/path/full_match.mp3
+/same/path/full_match.mp3.name_contains_other_filename_and_path.mp3
 ```
 
 ## Usage
