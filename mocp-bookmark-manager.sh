@@ -317,7 +317,7 @@ format_timestamp() {
 
 # Echoes the current position in the playing mocp file
 format_mocp_time() {
-	format_timestamp $($MOCP -Q cs)
+	format_timestamp $($MOCP -Q %cs)
 }
 
 # Formats the input seconds as time parameter for mp3splt
