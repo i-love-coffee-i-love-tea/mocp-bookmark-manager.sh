@@ -66,7 +66,7 @@ Just copy the script to ~/bin/mocp-bookmark-manager.sh and make sure it is execu
 ```
 $ mkdir ~/bin
 $ wget -O bin/mocp-bookmark-manager.sh https://github.com/i-love-coffee-i-love-tea/mocp-bookmark-manager.sh/blob/master/mocp-bookmark-manager.sh
-$ chmod +x bin/mocp-bookmark-manager.sh ~/bin
+$ chmod +x ~/bin/mocp-bookmark-manager.sh
 ```
 
 Then edit the variable BOOKMARKS_FILE in the script to a file destination you like. 
