@@ -64,7 +64,7 @@ apt install mocp mp3splt
 Just copy the script to ~/bin/mocp-bookmark-manager.sh and make sure it is executable.
 
 ```
-$ mkdir ~/bin
+$ ~/bin
 $ wget -O bin/mocp-bookmark-manager.sh https://github.com/i-love-coffee-i-love-tea/mocp-bookmark-manager.sh/blob/master/mocp-bookmark-manager.sh
 $ chmod +x ~/bin/mocp-bookmark-manager.sh
 ```
@@ -105,9 +105,10 @@ alias micvol++='amixer set "Rear Mic" 10%+'
 alias mutemic='amixer cset name="Input Source",index=0 "Rear Mic"'
 alias unmutemic='amixer cset name="Input Source",index=0 "Rear Mic"'
 ```
+```
 $ mkdir ~/.bash_aliases.d
 $ wget -O ~/.bash_aliases.d/amixer https://github.com/i-love-coffee-i-love-tea/mocp-bookmark-manager.sh/blob/master/bash-completions
-
+```
 ```
 alias bm='/home/gobuki/bin/mocp-bookmark-manager.sh'
 
