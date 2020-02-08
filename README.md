@@ -275,13 +275,13 @@ $ bm filter rating gt 3
 
 All possible operators:
 
-lt (<)
-le (<=)
-eq (==)
-ge (>=)
+lt (<),
+le (<=),
+eq (==),
+ge (>=),
 gt (>)
 
-(like used in the core utils test builtin)
+Same as used in the core utils test builtin.
 
 ### Filter bookmarks by comment
 
