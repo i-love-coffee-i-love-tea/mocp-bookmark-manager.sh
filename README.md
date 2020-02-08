@@ -16,9 +16,12 @@ This script might be useful to you, if you identify with at least some of these 
 
 ## Motivation to develop this script
 
-I record a lot of radio shows with hosts presenting their favourites songs/tracks and dj mixes using a cron job. So i have a lot of files laying around and it wasn't fun to keep track of all the good stuff in them. I used to select a file randomly and skip through it until I find something interesting, then I listened to it for a week or so and then I, life went on, and I forgot where the nice music is hidden. I started to write down some timestamps in a textfile, but that got unmanageable and it wasn't fun.
+I record a lot of radio shows with hosts presenting their favourite songs/tracks and dj mixes using a cron job. So I have a lot of files laying around and it wasn't fun to keep track of all the good stuff in them. I used to select a file randomly and skip through it until I find something interesting, then I listened to it for a week or so, then life went on, and I forgot where the nice music is hidden. I started to write down some timestamps in a textfile, but that got unmanageable and it wasn't fun.
 
 My expectations weren't that high. I just wanted some... any.. way to save, search and jump to annotated bookmarks.
+
+This script does everything I wanted and more. It has some features, that practically came with it for free, like the possibility to use two bookmarks to export an mp3 from the range using mp3splt. 
+
 
 ## Features
 
@@ -31,6 +34,7 @@ My expectations weren't that high. I just wanted some... any.. way to save, sear
 * Edit bookmark rating/comment
 * Save the segment between two bookmarks in an mp3 file as mp3. (needs mp3splt)
 * Jump to the first, previous, next, last bookmark in a file
+
 
 ## Prerequisites
 
@@ -57,7 +61,6 @@ To install the packages on Ubuntu/Debian:
 ```
 apt install mocp mp3splt
 ```
-
 
 ## Installation
 
@@ -129,7 +132,6 @@ alias unpause='mocp -U'
 $ mkdir ~/.bash_aliases.d/
 $ wget -O ~/.bash_aliases.d/amixer https://github.com/i-love-coffee-i-love-tea/mocp-bookmark-manager.sh/blob/master/bash-completions
 ```
-
 
 ### Bash completion support
 
@@ -207,7 +209,6 @@ where command is one of the following:
 	                                  	comment
 
 ```
-
 
 ## Usage examples
 
@@ -290,7 +291,6 @@ Same as used in the core utils test builtin.
 ```
 $ bm filter comment "search-term"
 ```
-
 
 ### Export the segment between two bookmarks from an mp3 file
 
