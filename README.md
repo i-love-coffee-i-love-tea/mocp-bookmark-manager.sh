@@ -135,7 +135,7 @@ $ wget -O ~/.bash_aliases.d/amixer https://github.com/i-love-coffee-i-love-tea/m
 The script has a bash completions file embedded which can be printed to the console or redirected to a file.
 
 ```
-$ bm output-bash completions > /tmp/bm
+$ bm output-bash-completions > /tmp/bm
 $ sudo cp /tmp/bm /usr/share/bash-completion/completions/bm
 ```
 The completions will be active in new bash instances. To load the completion functions in an already running bash,
