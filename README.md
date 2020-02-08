@@ -151,10 +151,11 @@ I only tested it with very simple filenames, without special characters and spac
 The filtering functions don't work correctly when your bookmarks list contains bookmarks from files with names
 that fully match part of another filename.
 
-Example
-
+Example:
+```
 full_match.mp3
 full_match.mp3.extract_01.mp3
+```
 
 ## Usage
 
