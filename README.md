@@ -271,17 +271,17 @@ jumping to bookmark 7 at position 00h:49m:34s
 
 ### Filter bookmarks by rating
 
-The default operator is '=='
+The default operator is '>='
 ```
-# Show bookmarks with rating==3
+# Show bookmarks with a rating greater than or equal to 3 
 $ bm filter rating 3
 ```
 
 You can also supply a different operator
 
 ```
-# Show bookmarks with rating>=3
-$ bm filter rating gt 3
+# Show bookmarks with a rating lower than 3
+$ bm filter rating lt 3
 ```
 
 All possible operators:
