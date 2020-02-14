@@ -8,9 +8,9 @@ A bookmark manager for the wonderfully simple, yet powerful cli audio player 'mo
 
 This script might be useful to you, if you identify with at least some of these statements
 
-* you feel at home when you have shell in front of you 
+* you feel at home when you have shell in front of you
 * you like to listen to long audio files
-* you need a simple way to set browsable marks at audio file positions, with ratings and comments
+* you're looking for a simple way to set browsable marks at audio file positions, with ratings and comments
 * you don't like to throw massive (system) resources on simple problems
 
 
@@ -57,9 +57,12 @@ Optionally, for extracting mp3 segments between bookmarks
 
 
 To install the packages on Ubuntu/Debian:
-
 ```
-apt install mocp mp3splt
+$ apt install mocp mp3splt
+```
+Installation on FreeBSD
+```
+$ pkg install moc mp3splt	
 ```
 
 ## Installation
@@ -325,8 +328,5 @@ Or maybe better not,... the last twenty years I got the impression that CUE file
 * Command to list the bookmarks in a file by its index
 * Use a default filename when exporting mp3 segments, if the destination filename isn't specified. Pattern: ${cut -c-4 ${ORIGINAL_FILENAME}}_${TIME_FROM}_${TIME_TO}.mp3
 * Add a genre field
-
-
-
-
-
+* Explore possibilities to integrate other players
+* Voice commands using deepspeech?

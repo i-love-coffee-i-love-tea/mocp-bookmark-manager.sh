@@ -65,6 +65,8 @@
 #         >			gt
 #           
 
+#set -x
+
 BOOKMARKS_FILE="/home/gobuki/Radio_X/bookmarks.csv"
 MP3SPLT_DEFAULT_OUTPUT_DIR="/home/gobuki/Radio_X/extracts"
 
@@ -98,6 +100,7 @@ FIELD_POS=3
 FIELD_CREATED=4
 FIELD_RATING=5
 FIELD_COMMENT=6
+DEFAULT_SORT_FIELD=$FIELD_POS
 
 # Terminal colors
 RED="\033[1;31m"
@@ -171,12 +174,14 @@ list_file_bookmarks() {
 	FILTER_OPERATOR="$3"
 	FILTER="$4"
 
-
-
 	print_file_bookmarks_header "$AUDIO_FILE"
 
 	# filter by rating
 	if [ "$FILTER_COLUMN" = "$FIELD_RATING" ]; then
+		get_bookmarks_filtered "$AUDIO_FILE" $FIELD_POS \
+			| $AWK -F';' "\$${FILTER_COLUMN}${FILTER_OPERATOR}${FILTER}    {printf \"%3d at %02dh:%02dm:%02ds\t%s\t%s\t%s\n\", \
+		       	\$1, \$3/(60*60), \$3%(60*60)/60, \$3%60, \$4, substr(\"*******\", 1, \$5), \$6}"
+	elif [ "$FILTER_COLUMN" = "$FIELD_POS" ]; then
 		get_bookmarks_filtered "$AUDIO_FILE" $FIELD_POS \
 			| $AWK -F';' "\$${FILTER_COLUMN}${FILTER_OPERATOR}${FILTER}    {printf \"%3d at %02dh:%02dm:%02ds\t%s\t%s\t%s\n\", \
 		       	\$1, \$3/(60*60), \$3%(60*60)/60, \$3%60, \$4, substr(\"*******\", 1, \$5), \$6}"
@@ -268,17 +273,22 @@ get_bookmark() {
 	fi
 }
 
+get_file_bookmarks() {
+	FILE="$1"
+}
+
 
 # Echoes CSV lines matching the passed filter expression, sorted by the field with the index
 # passed as second parameter
 get_bookmarks_filtered() {
 	FILTER="$1"
-	SORT_FIELD=$2
-	if [ "${SORT_FIELD}x" = "x" ]; then
-		$GREP "$FILTER" "${BOOKMARKS_FILE}"
+	if [ "x" != "x$2" ]; then
+		SORT_FIELD=$2
 	else
-		$SORT -nk$SORT_FIELD -t';' "${BOOKMARKS_FILE}" | $GREP "$FILTER" "${BOOKMARKS_FILE}"
+		# empty
+		SORT_FIELD=$DEFAULT_SORT_FIELD
 	fi
+	$SORT -nk$SORT_FIELD -t';' "${BOOKMARKS_FILE}" | $GREP "$FILTER" 
 }
 
 
@@ -434,7 +444,7 @@ cmd_goto() {
 
 # Jumps to the first bookmark in the playing file
 cmd_first() {
-	FIRST_BOOKMARK=$($GREP "$(get_playing_file)" "$BOOKMARKS_FILE" | $AWK -F';' "{print \$$FIELD_ID}" | $SORT | head -n1)
+	FIRST_BOOKMARK=$($GREP "$(get_playing_file)" "$BOOKMARKS_FILE" | $AWK -F';' "{print \$$FIELD_POS\" \"\$$FIELD_ID}" | $SORT -n | head -n1 | cut -f2 -d' ')
 	cmd_goto $FIRST_BOOKMARK
 }
 
@@ -443,14 +453,13 @@ cmd_previous() {
 	if [ -s /tmp/last_bookmark_jump ]; then
 		LAST_BOOKMARK_INDEX=$(cat /tmp/last_bookmark_jump)
 		# find next bookmark index
-		PLAYING_FILE=$(get_playing_file)
 		if [ -z "$LAST_BOOKMARK_INDEX" ]; then
 			echo "no previous jump" 
 			cmd_first
 		else
 			echo "previously jumped to bookmark $LAST_BOOKMARK_INDEX"
 			echo "trying to find a bookmark with lower index in the file"
-			NEXT_LOWER_INDEX_IN_FILE=$($GREP "$PLAYING_FILE" "$BOOKMARKS_FILE" | $AWK -F';' "{print \$$FIELD_ID}" | $SORT | $GREP ^$LAST_BOOKMARK_INDEX\$ -B1 | head -n1)
+			NEXT_LOWER_INDEX_IN_FILE=$($GREP "$(get_playing_file)" "$BOOKMARKS_FILE" | $AWK -F';' "{print \$$FIELD_POS\" \"\$$FIELD_ID}" | $SORT -n | $GREP " $LAST_BOOKMARK_INDEX\$" -B1 | head -n1 | cut -f2 -d' ')
 			if [ "x$NEXT_LOWER_INDEX_IN_FILE" != "x" ]; then
 				echo "lower index found: $NEXT_LOWER_INDEX_IN_FILE"
 				cmd_goto $NEXT_LOWER_INDEX_IN_FILE
@@ -467,13 +476,22 @@ cmd_previous() {
 # Jumps to the next bookmark in the playing file
 cmd_next() {
 	if [ -s /tmp/last_bookmark_jump ]; then
+		# first find the position of the last jumped-to-position
 		LAST_BOOKMARK_INDEX=$(cat /tmp/last_bookmark_jump)
 		if [ -z "$LAST_BOOKMARK_INDEX" ]; then
 			cmd_first
 		else
-			NEXT_HIGHEST_INDEX_IN_FILE=$($GREP "$(get_playing_file)" "$BOOKMARKS_FILE" | $AWK -F';' "{print \$$FIELD_ID}" | $SORT | $GREP ^$LAST_BOOKMARK_INDEX\$ -A1 | tail -n1)
-			if [ ! -z "$NEXT_HIGHEST_INDEX_IN_FILE" ]; then
-				cmd_goto $NEXT_HIGHEST_INDEX_IN_FILE
+			# grep database for bookmarks in playing file
+			# awk: print only the position and bookmark id columns. positions first,
+		        #      so we can sort by the bookmark positions using sort.
+			# next grep: filter by the last jumped to bookmark index.
+		        #  	     output the matching line and the next one after it (-A1), containing the next bookmark position
+			# sort...
+			# tail -n1: leaves only the line with the target bookmark position in the output
+			# cut: extract the bookmark id field from the line
+			NEXT_HIGHER_INDEX_IN_FILE=$($GREP "$(get_playing_file)" "$BOOKMARKS_FILE" | $AWK -F';' "{print \$$FIELD_POS\" \"\$$FIELD_ID}" | $SORT -n | $GREP " $LAST_BOOKMARK_INDEX\$" -A1 | tail -n1 | cut -f2 -d' ')
+			if [ ! -z "$NEXT_HIGHER_INDEX_IN_FILE" ]; then
+				cmd_goto $NEXT_HIGHER_INDEX_IN_FILE
 			else
 				cmd_first
 			fi
@@ -485,7 +503,7 @@ cmd_next() {
 
 # Jumps to the last bookmark of the playing file
 cmd_last() {
-	LAST_BOOKMARK=$($GREP "$(get_playing_file)" "$BOOKMARKS_FILE" | $AWK -F';' "{print \$$FIELD_ID}" | $SORT | tail -n1)
+	LAST_BOOKMARK=$($GREP "$(get_playing_file)" "$BOOKMARKS_FILE" | $AWK -F';' "{print \$$FIELD_POS\" \"\$$FIELD_ID}" | $SORT -n | tail -n1 | cut -f2 -d' ')
 	cmd_goto $LAST_BOOKMARK
 }
 
@@ -541,26 +559,7 @@ cmd_remove() {
 
 # Lists all bookmarks with a passed minimum rating 
 cmd_filter_rating() {
-	AWK_COMPARISON_OPERATOR="=="
-	if [ ! -z "$2" ]; then
-		RATING="$2"
-		if [ "$1" == "lt" ]; then
-			AWK_COMPARISON_OPERATOR="<"
-		elif [ "$1" == "le" ]; then
-			AWK_COMPARISON_OPERATOR="<="
-		elif [ "$1" == "eq" ]; then
-			AWK_COMPARISON_OPERATOR="=="
-		elif [ "$1" == "gt" ]; then
-			AWK_COMPARISON_OPERATOR=">"
-		elif [ "$1" == "ge" ]; then
-			AWK_COMPARISON_OPERATOR=">="
-		else 
-			AWK_COMPARISON_OPERATOR="$1"
-		fi
-	else 
-		RATING="$1"
-		AWK_COMPARISON_OPERATOR="=="
-	fi
+	AWK_COMPARISON_OPERATOR="$(_translate_comparison_operator $1)"
 	
 #	echo "$AWK -F';' \"\$${FIELD_RATING}${AWK_COMPARISON_OPERATOR}$RATING {print \$0}\" \"${BOOKMARKS_FILE}\" | $CUT -f$FIELD_FILE -d';' | $SORT | $UNIQ"
 	AUDIO_FILES="$($AWK -F';' "\$${FIELD_RATING}${AWK_COMPARISON_OPERATOR}${RATING} {print \$0}" "${BOOKMARKS_FILE}" | $CUT -f$FIELD_FILE -d';' | $SORT | $UNIQ)"
@@ -572,12 +571,46 @@ $AUDIO_FILES
 EOF
 }
 
+_translate_comparison_operator() {
+	if [ "x" == "x$1" ]; then
+		echo "=="
+		return
+	fi
+	if [ "$1" == "lt" ]; then
+		AWK_COMPARISON_OPERATOR="<"
+	elif [ "$1" == "le" ]; then
+		AWK_COMPARISON_OPERATOR="<="
+	elif [ "$1" == "eq" ]; then
+		AWK_COMPARISON_OPERATOR="=="
+	elif [ "$1" == "gt" ]; then
+		AWK_COMPARISON_OPERATOR=">"
+	elif [ "$1" == "ge" ]; then
+		AWK_COMPARISON_OPERATOR=">="
+	else 
+		AWK_COMPARISON_OPERATOR="$1"
+	fi
+	echo "${AWK_COMPARISON_OPERATOR}"
+}
+
 # Lists all bookmarks with matching comments
 cmd_filter_comment() {
 	COMMENT="$1"
 	AUDIO_FILES="$($AWK -F';' "\$$FIELD_COMMENT ~ /$COMMENT/ {print \$0}" "${BOOKMARKS_FILE}" | $CUT -f$FIELD_FILE -d';' | $SORT | $UNIQ)"
 	while read AUDIO_FILE; do
 		list_file_bookmarks "$AUDIO_FILE" $FIELD_COMMENT "$COMMENT"
+		echo
+	done <<EOF
+$AUDIO_FILES
+EOF
+}
+
+cmd_filter_pos() {
+	AWK_COMPARISON_OPERATOR="$(_translate_comparison_operator $1)"
+	POS_SECONDS="$2"
+
+	AUDIO_FILES="$($AWK -F';' "\$$FIELD_POS ${AWK_COMPARISON_OPERATOR} $POS_SECONDS {print \$0}" "${BOOKMARKS_FILE}" | $CUT -f$FIELD_FILE -d';' | $SORT | $UNIQ)"
+	while read AUDIO_FILE; do
+		list_file_bookmarks "$AUDIO_FILE" $FIELD_POS "$AWK_COMPARISON_OPERATOR" "$POS_SECONDS"
 		echo
 	done <<EOF
 $AUDIO_FILES
@@ -698,9 +731,10 @@ while [ $# -gt 0 ]; do
 			echo    "the following fields are available for filtering:"	
 			echo -e "\tr[ating]"
 			echo -e "\tc[omment]"
+			echo -e "\tp[osition]"
 			exit 2
 		fi
-		FILTER_FIELDS="rating comment"
+		FILTER_FIELDS="$($0 filter | awk '/^\t[a-z]/ {print $1}' | tr -d '[]' | cut -d'|' -f1)"
 		FILTER_FIELD=$(complete_command $1 "$FILTER_FIELDS")
 		if [ "$FILTER_FIELD" = "rating" ]; then
 			shift
@@ -713,6 +747,12 @@ while [ $# -gt 0 ]; do
 			shift
 			if [ ! -z "$1" ]; then
 				cmd_filter_comment "$1"
+				exit 0
+			fi
+		elif [ "$FILTER_FIELD" = "position" ]; then
+			shift
+			if [ ! -z "$1" ]; then
+				cmd_filter_pos "$1" "$2"
 				exit 0
 			fi
 		fi
@@ -773,8 +813,10 @@ printf "\t%-34s %s\n" "" "with an optional comment"
 echo
 printf "\t%-34s %s\n" "g[oto] <bookmark_index>" "jump to the bookmark playing position"
 printf "\t%-34s %s\n" "" "the file containing the bookmark must be playing in mocp"
-printf "\t%-34s %s\n" "pre[vious]" "jump to previous bookmark in file"
-printf "\t%-34s %s\n" "n[ext]" "jump to next bookmark in file"
+printf "\t%-34s %s\n" "fir[st]" "jump to first bookmark in the current file"
+printf "\t%-34s %s\n" "pre[vious]" "jump to previous bookmark in the current file"
+printf "\t%-34s %s\n" "n[ext]" "jump to next bookmark in the current file"
+printf "\t%-34s %s\n" "la[st]" "jump to last bookmark in the current file"
 printf "\t%-34s %s\n" "" "If there was a manual jump before."
 printf "\t%-34s %s\n" "" "If not the jump will be to the first bookmark"
 
@@ -794,8 +836,8 @@ printf "\t%-34s %s\n" "list-[playing]" "list playing file bookmarks"
 printf "\t%-34s %s\n" "lp" "list playing file bookmarks"
 echo
 printf "\t%s %-25s %s\n" "f[ilter]" "r[ating] [lt|le|qe|gt|ge] <1-5>" "list bookmarks with a matching rating"
-printf "\t%s %-25s %s\n" "" "" ""
 printf "\t%s %-25s %s\n" "f[ilter]" "c[omment] <search-term>" "comment must contain the search term"
+printf "\t%s %-25s %s\n" "f[ilter]" "p[osition] [lt|le|qe|gt|ge] <position in seconds>" ""
 echo
 printf "\t%-34s %s\n" "o[utput-bash-completions]" "output bash_completions_file"
 printf "\t%-34s %s\n" "sy[stem-info]" "check if the required shell utils are available"
