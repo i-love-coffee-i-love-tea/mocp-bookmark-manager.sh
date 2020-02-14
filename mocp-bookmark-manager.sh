@@ -559,12 +559,17 @@ cmd_remove() {
 
 # Lists all bookmarks with a passed minimum rating 
 cmd_filter_rating() {
-	AWK_COMPARISON_OPERATOR="$(_translate_comparison_operator $1)"
-	
-#	echo "$AWK -F';' \"\$${FIELD_RATING}${AWK_COMPARISON_OPERATOR}$RATING {print \$0}\" \"${BOOKMARKS_FILE}\" | $CUT -f$FIELD_FILE -d';' | $SORT | $UNIQ"
-	AUDIO_FILES="$($AWK -F';' "\$${FIELD_RATING}${AWK_COMPARISON_OPERATOR}${RATING} {print \$0}" "${BOOKMARKS_FILE}" | $CUT -f$FIELD_FILE -d';' | $SORT | $UNIQ)"
+	if [ "x$2" == "x" ]; then
+		COMP=">="	
+		RATING=$1
+	else
+		COMP="$(_translate_comparison_operator "$1")"
+		RATING=$2
+	fi
+	AUDIO_FILES="$($AWK -F';' "\$${FIELD_RATING}${COMP}${RATING} {print \$0}" "${BOOKMARKS_FILE}" | $CUT -f$FIELD_FILE -d';' | $SORT | $UNIQ)"
+	[ "x$AUDIO_FILES" == "x" ] && echo No matching bookmarks found && return 2
 	while read AUDIO_FILE; do
-	        list_file_bookmarks "$AUDIO_FILE" "$FIELD_RATING" "$AWK_COMPARISON_OPERATOR" "$RATING"
+	        list_file_bookmarks "$AUDIO_FILE" "$FIELD_RATING" "$COMP" "$RATING"
 		echo
 	done <<EOF
 $AUDIO_FILES
@@ -572,10 +577,6 @@ EOF
 }
 
 _translate_comparison_operator() {
-	if [ "x" == "x$1" ]; then
-		echo "=="
-		return
-	fi
 	if [ "$1" == "lt" ]; then
 		AWK_COMPARISON_OPERATOR="<"
 	elif [ "$1" == "le" ]; then
@@ -586,8 +587,6 @@ _translate_comparison_operator() {
 		AWK_COMPARISON_OPERATOR=">"
 	elif [ "$1" == "ge" ]; then
 		AWK_COMPARISON_OPERATOR=">="
-	else 
-		AWK_COMPARISON_OPERATOR="$1"
 	fi
 	echo "${AWK_COMPARISON_OPERATOR}"
 }
@@ -596,6 +595,7 @@ _translate_comparison_operator() {
 cmd_filter_comment() {
 	COMMENT="$1"
 	AUDIO_FILES="$($AWK -F';' "\$$FIELD_COMMENT ~ /$COMMENT/ {print \$0}" "${BOOKMARKS_FILE}" | $CUT -f$FIELD_FILE -d';' | $SORT | $UNIQ)"
+	[ "x$AUDIO_FILES" == "x" ] && echo No matching bookmarks found && return 2
 	while read AUDIO_FILE; do
 		list_file_bookmarks "$AUDIO_FILE" $FIELD_COMMENT "$COMMENT"
 		echo
@@ -605,12 +605,17 @@ EOF
 }
 
 cmd_filter_pos() {
-	AWK_COMPARISON_OPERATOR="$(_translate_comparison_operator $1)"
-	POS_SECONDS="$2"
-
-	AUDIO_FILES="$($AWK -F';' "\$$FIELD_POS ${AWK_COMPARISON_OPERATOR} $POS_SECONDS {print \$0}" "${BOOKMARKS_FILE}" | $CUT -f$FIELD_FILE -d';' | $SORT | $UNIQ)"
+	if [ "x$2" == "x" ]; then
+		COMP=">="	
+		POS_SECONDS=$1
+	else
+		COMP="$(_translate_comparison_operator "$1")"
+		POS_SECONDS=$2
+	fi
+	AUDIO_FILES="$($AWK -F';' "\$$FIELD_POS ${COMP} $POS_SECONDS {print \$0}" "${BOOKMARKS_FILE}" | $CUT -f$FIELD_FILE -d';' | $SORT | $UNIQ)"
+	[ "x$AUDIO_FILES" == "x" ] && echo No matching bookmarks found && return 2
 	while read AUDIO_FILE; do
-		list_file_bookmarks "$AUDIO_FILE" $FIELD_POS "$AWK_COMPARISON_OPERATOR" "$POS_SECONDS"
+		list_file_bookmarks "$AUDIO_FILE" $FIELD_POS "$COMP" "$POS_SECONDS"
 		echo
 	done <<EOF
 $AUDIO_FILES
@@ -628,8 +633,6 @@ cmd_mv_bookmark() {
 	echo
 }
 
-
- 
 
 #====================================================================================================
 # Main

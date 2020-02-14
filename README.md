@@ -170,7 +170,7 @@ Everything that is between [] is optional.
 
 ```
 $ bm
-usage: /home/gobuki/bin/bm command args ...
+usage: /home/gobuki/bin/mocp-bookmark-manager.sh command args ...
 where command is one of the following:
 
 	a[dd] [comment]                    bookmark the current mocp playing position
@@ -178,29 +178,34 @@ where command is one of the following:
 
 	g[oto] <bookmark_index>            jump to the bookmark playing position
 	                                   the file containing the bookmark must be playing in mocp
-	pre[vious]                         jump to previous bookmark in file
-	n[ext]                             jump to next bookmark in file
+	fir[st]                            jump to first bookmark in the current file
+	pre[vious]                         jump to previous bookmark in the current file
+	n[ext]                             jump to next bookmark in the current file
+	la[st]                             jump to last bookmark in the current file
 	                                   If there was a manual jump before.
 	                                   If not the jump will be to the first bookmark
 
-	set-r[ating] <bookmark_index> <rating>
+	set-r[ating] <bookmark_index> <rating> 
 	                                   set a rating value (can be anything, i use 1-5)
 
-	set-c[omment] <bookmark_index> <comment>
+	set-c[omment] <bookmark_index> <comment> 
 	                                   set the bookmark comment
 
 	sh[ow] <bookmark_index>            show bookmark details
 	re[move]|rm <bookmark_index>       remove a bookmark
-	d[elete] <bookmark_index>
+	d[elete] <bookmark_index>          
 
 	list                               list all bookmarks by file
-	list-[playing]|lp                  list playing file bookmarks
+	list-[playing]                     list playing file bookmarks
+	lp                                 list playing file bookmarks
 
-	f[ilter] r[ating] <1-5>            bookmark must have a minimum rating of <1-5>
-	f[ilter] c[omment] <search-term>   comment must contain the search term
+	fi[lter] r[ating] [lt|le|qe|gt|ge] <1-5> list bookmarks with a matching rating
+	fi[lter] c[omment] <search-term>   comment must contain the search term
+	fi[lter] p[osition] [lt|le|qe|gt|ge] <position in seconds> 
 
 	o[utput-bash-completions]          output bash_completions_file
-	sy[stem-info]                      check if the needed shell utils are available
+	sy[stem-info]                      check if the required shell utils are available
+	sp[lit] <start-index> <end-index> [output-filename] check if the required shell utils are available
 
 	pri[nt-csv]                        output the bookmarks csv database to the terminal
 	                                   columns:
@@ -266,7 +271,7 @@ jumping to bookmark 7 at position 00h:49m:34s
 
 ### Filter bookmarks by rating
 
-The default operator is ==
+The default operator is '=='
 ```
 # Show bookmarks with rating==3
 $ bm filter rating 3
@@ -288,6 +293,12 @@ ge (>=),
 gt (>)
 
 Same as used in the core utils test builtin.
+	
+### To display bookmarks without a rating you can filter by 'lower than 1'
+```
+$ bm filter rating lt 1
+```
+
 
 ### Filter bookmarks by comment
 
